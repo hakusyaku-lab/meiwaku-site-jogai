@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>迷惑サイト除外</title>
+<style>
+  :root { color-scheme: light dark; --fg:#202124; --sub:#5f6368; --bg:#fff; --line:#dadce0; --accent:#d93025; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#e8eaed; --sub:#9aa0a6; --bg:#202124; --line:#3c4043; --accent:#f28b82; } }
+  body { margin:0; width:340px; padding:14px 16px 16px; font:14px/1.5 system-ui, "Segoe UI", "Hiragino Sans", "Meiryo", sans-serif; color:var(--fg); background:var(--bg); }
+  h1 { font-size:16px; margin:0 0 10px; display:flex; justify-content:space-between; align-items:center; }
+  label.sw { font-size:13px; font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer; }
+  p { margin:0 0 8px; color:var(--sub); font-size:12px; }
+  textarea { box-sizing:border-box; width:100%; height:220px; padding:8px; border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--fg); font:13px/1.5 ui-monospace, Consolas, monospace; resize:vertical; }
+  .row { display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
+  button { padding:7px 18px; border:none; border-radius:6px; background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  #msg { font-size:12px; color:var(--sub); }
+</style>
+</head>
+<body>
+  <h1>迷惑サイト除外 <label class="sw"><input type="checkbox" id="enabled"> 有効</label></h1>
+  <p>除外したいサイトを1行に1つ書きます（例：<b>example.com</b>）。URLを貼っても大丈夫です。サブドメイン（blog.example.com など）もまとめて除外されます。</p>
+  <textarea id="list" spellcheck="false" placeholder="example.com"></textarea>
+  <div class="row"><span id="msg"></span><button id="save">保存</button></div>
+  <script src="popup.js"></script>
+</body>
+</html>

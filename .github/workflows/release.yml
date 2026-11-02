@@ -1,0 +1,109 @@
+# main に送る（プッシュする）たびに自動で動きます。
+#  1. 書き間違いがないか、スマホ用ファイルが最新かをチェック
+#  2. manifest.json のバージョンがまだ公開されていなければ、
+#     Chrome・Edge用 / Firefox用 のZIPとスマホ用スクリプトを Releases に公開
+#
+# 新しい版を出すときは、2つの manifest.json の version を上げて CHANGELOG.md に書き、
+# python scripts/build.py を実行してから main に送るだけです。
+
+name: チェックと自動公開
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 書き間違いチェック
+        run: |
+          for f in manifest.json firefox/manifest.json; do
+            node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))"
+          done
+          node --check popup.js
+          node --check content.js
+
+      - name: 配布ファイルを作る
+        run: python3 scripts/build.py
+
+      - name: スマホ用スクリプトが最新か確認
+        run: |
+          node --check userscript/meiwaku-site-jogai.user.js
+          if ! git diff --quiet -- userscript/; then
+            echo "::error::userscript が古いままです。python scripts/build.py を実行してから送ってください"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/
+            userscript/
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+
+      - name: バージョンを確認
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./manifest.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "v$VERSION は公開済みなので、今回は公開しません"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 更新内容を CHANGELOG.md から取り出す
+        if: steps.ver.outputs.publish == 'true'
+        run: |
+          awk -v v="### ${{ steps.ver.outputs.version }}" '
+            (index($0, v "（") == 1 || $0 == v || index($0, v " ") == 1) { on = 1; next }
+            on && (/^### / || /^## /) { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::CHANGELOG.md に「### ${{ steps.ver.outputs.version }}」の項目がありません"
+            exit 1
+          fi
+          {
+            echo
+            echo "---"
+            echo "**Chrome・Edge・Brave など**：MeiwakuSiteJogai.zip を展開して「展開して読み込み」"
+            echo "**Firefox**：MeiwakuSiteJogai-firefox.zip（addons.mozilla.org にそのままアップロードできます）"
+            echo "**iPhone・Android・Safari**：meiwaku-site-jogai.user.js（入れ方は README）"
+          } >> notes.md
+
+      - name: Releases に公開
+        if: steps.ver.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.ver.outputs.version }}" \
+            dist/MeiwakuSiteJogai.zip \
+            dist/MeiwakuSiteJogai-firefox.zip \
+            userscript/meiwaku-site-jogai.user.js \
+            --title "迷惑サイト除外 ${{ steps.ver.outputs.version }}" \
+            --notes-file notes.md \
+            --target "${{ github.sha }}" \
+            --latest
